@@ -6,15 +6,36 @@ import pytest
 
 from biomero_template import container_test as ct
 from biomero_template.conversion import ZARR, find_images, image_format
-from conftest import ROOT
-
-WORKFLOW_CONFIG = ROOT / "config.yaml"
+from conftest import CONFIG as WORKFLOW_CONFIG, EXAMPLE, ROOT
 
 
 def test_image_name_from_config():
     image, platform = ct.image_name(WORKFLOW_CONFIG)
     assert image.count("/") == 1 and ":" in image
     assert platform.startswith("linux/")
+
+
+def test_example_is_built_with_its_own_dockerfile():
+    command = ct.build_command("docker", ROOT, "org/name:v1", "linux/amd64", WORKFLOW_CONFIG)
+    assert command[command.index("-f") + 1] == str(EXAMPLE / "Dockerfile")
+    assert "WORKFLOW_DIR=examples/classical_segmentation" in command
+    assert command[-1] == str(ROOT)
+
+
+def _generic_lines(dockerfile):
+    lines, in_tool_layer = [], False
+    for line in dockerfile.read_text().splitlines():
+        if line.startswith("# >>> tool layer"):
+            in_tool_layer = True
+        elif line.startswith("# <<< tool layer"):
+            in_tool_layer = False
+        elif not in_tool_layer:
+            lines.append(line)
+    return lines
+
+
+def test_example_dockerfile_matches_template_outside_tool_layer():
+    assert _generic_lines(EXAMPLE / "Dockerfile") == _generic_lines(ROOT / "Dockerfile")
 
 
 def test_run_command_mounts_the_job_data_folder(tmp_path):

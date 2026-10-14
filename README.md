@@ -13,13 +13,14 @@ the [`create-biomero-container`](.claude/skills/create-biomero-container/SKILL.m
 
 | File | Role |
 |---|---|
-| `config.yaml` | bilayers spec of the workflow; BIOMERO reads it from the repository at a release tag |
+| `config.yaml` | bilayers spec of the workflow; BIOMERO reads it from the repository at a release tag. Not in the template: written per workflow from its source |
 | `wrapper.py` | image entrypoint; picks the tool hook |
-| `Dockerfile` | tool layer + BIOMERO layer |
+| `Dockerfile` | generic image; the tool layer (between the `>>>`/`<<<` markers) is filled in per workflow |
 | `src/biomero_template/` | generic glue (below) |
+| `examples/classical_segmentation/` | a complete example workflow (`config.yaml` + `Dockerfile`), used by the tests and CI |
 
-The example workflow is bilayers' classical segmentation, which reads TIFF: OME-Zarr from BIOMERO is
-converted to TIFF for it and its TIFF labels back to OME-Zarr.
+The example is bilayers' classical segmentation, which reads TIFF: OME-Zarr from BIOMERO is converted
+to TIFF for it and its TIFF labels back to OME-Zarr.
 
 ## What runs in the container
 
@@ -51,9 +52,12 @@ Overrides via environment: `BIOMERO_CONVERT_INPUTS`, `BIOMERO_OUTPUT_FORMAT` (`a
 Build and test with Docker; BIOMERO runs the same image with Singularity/Apptainer on Slurm:
 
 ```
-docker build -t w_classical_segmentation .
-docker run --rm -v ./job/data:/data w_classical_segmentation --folder=/data/in --save_dir=/data/out --threshold_method=li
+docker build -t <org>/<name> .
+docker run --rm -v ./job/data:/data <org>/<name> --<input tag>=/data/in --<output tag>=/data/out --<param>=<value>
 ```
+
+For the example: `biomero-template container-test examples/classical_segmentation/config.yaml`
+(builds it with its own `Dockerfile` and runs it like BIOMERO).
 
 `job/data/in` holds the images (OME-Zarr or TIFF), results land in `job/data/out`. Mounting the
 whole `data` folder keeps the conversion staging folder on the host disk.

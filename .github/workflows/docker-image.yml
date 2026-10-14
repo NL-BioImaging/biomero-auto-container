@@ -11,8 +11,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Workflow config present
+        id: workflow
+        # the template itself has no workflow (config.yaml); generated workflow repositories do
+        run: echo "present=$([ -f config.yaml ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
       - name: Image name from config.yaml
         id: image
+        if: steps.workflow.outputs.present == 'true'
         run: |
           python3 - <<'PY' >> "$GITHUB_OUTPUT"
           import yaml
@@ -21,13 +26,15 @@ jobs:
           print(f"tag={image['tag']}")
           PY
       - name: Release tag must match docker_image.tag
-        if: github.event_name == 'release'
+        if: steps.workflow.outputs.present == 'true' && github.event_name == 'release'
         run: test "${{ github.event.release.tag_name }}" = "${{ steps.image.outputs.tag }}"
       - uses: docker/login-action@v3
+        if: steps.workflow.outputs.present == 'true'
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
       - uses: docker/build-push-action@v6
+        if: steps.workflow.outputs.present == 'true'
         with:
           push: true
           platforms: linux/amd64

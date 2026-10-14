@@ -36,8 +36,23 @@ def image_name(config: Path) -> tuple[str, str]:
     return f"{docker['org']}/{docker['name']}:{docker['tag']}", docker.get("platform", "linux/amd64")
 
 
-def build_command(runtime: str, context: Path, image: str, platform: str) -> list[str]:
-    return [runtime, "build", "--platform", platform, "-t", image, str(context)]
+def build_context(config: Path) -> Path:
+    """The repository root (the folder with pyproject.toml) holding the config."""
+    for folder in [config.resolve().parent, *config.resolve().parents]:
+        if (folder / "pyproject.toml").exists():
+            return folder
+    raise RuntimeError(f"No repository root (pyproject.toml) above {config}")
+
+
+def build_command(runtime: str, context: Path, image: str, platform: str, config: Path | None = None) -> list[str]:
+    """Build with the Dockerfile next to the config (else the root one), passing its folder as WORKFLOW_DIR."""
+    command = [runtime, "build", "--platform", platform, "-t", image]
+    if config is not None:
+        workflow_dir = config.resolve().parent
+        dockerfile = workflow_dir / "Dockerfile" if (workflow_dir / "Dockerfile").exists() else context / "Dockerfile"
+        command += ["-f", str(dockerfile), "--build-arg",
+                    f"WORKFLOW_DIR={workflow_dir.relative_to(context.resolve()).as_posix()}"]
+    return command + [str(context)]
 
 
 def run_command(runtime: str, image: str, platform: str, data_folder: Path, args: Sequence[str]) -> list[str]:
@@ -50,11 +65,11 @@ def container_test(config: Path, *, context: Path | None = None, runtime: str = 
                    keep: Path | None = None) -> list[Path]:
     """Build the image, run it on a BIOMERO-style job and check the results; returns the outputs."""
     config = Path(config)
-    context = Path(context) if context else config.parent
+    context = Path(context) if context else build_context(config)
     runtime = detect_runtime(runtime)
     image, platform = image_name(config)
     if build:
-        _run(build_command(runtime, context, image, platform))
+        _run(build_command(runtime, context, image, platform, config))
     job = Path(keep) if keep else Path(tempfile.mkdtemp(prefix="biomero-job-"))
     data = job / "data"
     if (data / "in").exists():

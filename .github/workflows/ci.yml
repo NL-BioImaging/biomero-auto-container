@@ -14,5 +14,6 @@ jobs:
           python-version: "3.12"
           cache: pip
       - run: pip install -e ".[test]"
-      - run: biomero-template validate config.yaml --biomero
+      - name: Validate workflow configs
+        run: for config in $(ls config.yaml examples/*/config.yaml 2>/dev/null); do biomero-template validate "$config" --biomero || exit 1; done
       - run: pytest

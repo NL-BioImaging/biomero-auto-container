@@ -63,9 +63,13 @@ work. (Podman also works: `--runtime podman` below.) Use a venv with this templa
 ## 2. Create the workflow repository
 
 Copy this template to the target directory, without `.git`, `.venv`, `.idea` and
-`__pycache__`, then `git init`. Keep `src/`, `scripts/`, `tests/`, `.github/`, `.claude/`
-so the workflow carries its own tooling. Replace the example (classical segmentation) in
-`config.yaml`, `wrapper.py`, `Dockerfile`, `README.md`; leave `tests/data/` (library tests).
+`__pycache__`, then `git init`. Keep `src/`, `scripts/`, `tests/`, `.github/`, `.claude/` and
+`examples/` (the library tests use the example), so the workflow carries its own tooling.
+
+The template has no `config.yaml` and an empty tool layer in the `Dockerfile`: everything
+workflow-specific is written from the source in the next steps, nothing is adapted from the
+example. Use `examples/classical_segmentation/` only as a reference for the form of a
+finished workflow. Rewrite `README.md` for the workflow.
 
 ## 3. Write `config.yaml`
 
@@ -98,7 +102,8 @@ Draft it from the source (see source types), then go through every field:
 
 ## 5. Dockerfile
 
-Replace only the tool layer. Pin versions (tags/commits) of the tool and its dependencies, so
+Fill in only the tool layer, between the `# >>> tool layer` and `# <<< tool layer` markers
+(keep the markers); change the base image only when the tool needs another one. Pin versions (tags/commits) of the tool and its dependencies, so
 each release tag of the workflow reproduces the same results. (The template's own dependencies,
 in `pyproject.toml` and the BIOMERO layer, stay unpinned.)
 If the tool needs a Python other than >=3.12, install `biomero_template` into its own venv

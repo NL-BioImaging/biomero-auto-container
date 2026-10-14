@@ -1,4 +1,5 @@
-"""Checks for this repository's own workflow (config.yaml at the root); keep these when adapting the template."""
+"""Checks for the workflow(s) in this repository: the root config.yaml (written per workflow; the
+template has none) and the examples. Keep these in generated workflow repositories."""
 from pathlib import Path
 
 import pytest
@@ -7,21 +8,29 @@ from biomero_template import BilayersSpec, validate_config
 from biomero_template.cli import _biomero_check
 from conftest import ROOT, biomero_argv
 
-WORKFLOW_CONFIG = ROOT / "config.yaml"
+CONFIGS = [path for path in [ROOT / "config.yaml", *sorted(ROOT.glob("examples/*/config.yaml"))] if path.exists()]
+DOCKERFILES = [path for path in [ROOT / "Dockerfile", *sorted(ROOT.glob("examples/*/Dockerfile"))] if path.exists()]
 
 
-def test_config_is_valid_bilayers():
-    assert validate_config(WORKFLOW_CONFIG) == []
+def _id(path: Path) -> str:
+    return path.parent.relative_to(ROOT).as_posix() or "root"
 
 
-def test_biomero_can_parse_config():
-    assert _biomero_check(str(WORKFLOW_CONFIG)) == []
+@pytest.mark.parametrize("config", CONFIGS, ids=_id)
+def test_config_is_valid_bilayers(config):
+    assert validate_config(config) == []
 
 
-def test_biomero_arguments_resolve(tmp_path):
+@pytest.mark.parametrize("config", CONFIGS, ids=_id)
+def test_biomero_can_parse_config(config):
+    assert _biomero_check(str(config)) == []
+
+
+@pytest.mark.parametrize("config", CONFIGS, ids=_id)
+def test_biomero_arguments_resolve(config, tmp_path):
     """The arguments BIOMERO generates (with defaults) are accepted and produce a tool command."""
-    spec = BilayersSpec(WORKFLOW_CONFIG)
-    values = spec.parse_args(biomero_argv(WORKFLOW_CONFIG, tmp_path))
+    spec = BilayersSpec(config)
+    values = spec.parse_args(biomero_argv(config, tmp_path))
     for name in spec.folder_inputs():
         if not spec.inputs[name].get("optional"):
             assert values.inputs[name] == tmp_path / "data" / "in"
@@ -31,28 +40,28 @@ def test_biomero_arguments_resolve(tmp_path):
         assert spec.command(values)
 
 
-@pytest.mark.skipif(not (ROOT / "Dockerfile").exists(), reason="no Dockerfile")
-def test_dockerfile_uses_wrapper_entrypoint():
-    entrypoint = [line for line in (ROOT / "Dockerfile").read_text().splitlines() if line.startswith("ENTRYPOINT")]
-    assert entrypoint and "wrapper.py" in entrypoint[-1], "BIOMERO runs the image entrypoint; it must be wrapper.py"
-
-
-def _dockerfile_instructions(keyword: str) -> list[str]:
-    lines = (ROOT / "Dockerfile").read_text().splitlines()
+def _instructions(dockerfile: Path, keyword: str) -> list[str]:
+    lines = dockerfile.read_text().splitlines()
     return [line.split(None, 1)[1] for line in lines if line.upper().startswith(keyword + " ")]
 
 
-@pytest.mark.skipif(not (ROOT / "Dockerfile").exists(), reason="no Dockerfile")
-def test_base_images_are_fully_qualified():
+@pytest.mark.parametrize("dockerfile", DOCKERFILES, ids=_id)
+def test_dockerfile_uses_wrapper_entrypoint(dockerfile):
+    entrypoint = _instructions(dockerfile, "ENTRYPOINT")
+    assert entrypoint and "wrapper.py" in entrypoint[-1], "BIOMERO runs the image entrypoint; it must be wrapper.py"
+
+
+@pytest.mark.parametrize("dockerfile", DOCKERFILES, ids=_id)
+def test_base_images_are_fully_qualified(dockerfile):
     """Podman does not resolve short names like python:3.12-slim by default."""
-    for base in _dockerfile_instructions("FROM"):
+    for base in _instructions(dockerfile, "FROM"):
         image = base.split()[0]
         if image.startswith("$") or image.lower() == "scratch":
             continue
         assert "." in image.split("/")[0], f"use a fully qualified image (e.g. docker.io/library/...): {image}"
 
 
-@pytest.mark.skipif(not (ROOT / "Dockerfile").exists(), reason="no Dockerfile")
-def test_no_user_switch():
-    """Singularity runs as the calling user and rootless Podman maps root to it; a USER breaks mounted folders."""
-    assert _dockerfile_instructions("USER") == []
+@pytest.mark.parametrize("dockerfile", DOCKERFILES, ids=_id)
+def test_no_user_switch(dockerfile):
+    """Singularity runs as the calling user; a USER breaks writing the mounted folders."""
+    assert _instructions(dockerfile, "USER") == []

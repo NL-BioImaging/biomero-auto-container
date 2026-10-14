@@ -10,7 +10,8 @@ import tifffile
 from biomero_template.contract import add_omero_metadata, biomero_argv  # noqa: F401 - used by tests
 
 ROOT = Path(__file__).resolve().parents[1]
-CONFIG = Path(__file__).parent / "data" / "classical_segmentation.yaml"  # example spec for the library tests
+EXAMPLE = ROOT / "examples" / "classical_segmentation"
+CONFIG = EXAMPLE / "config.yaml"  # example workflow used by the library tests
 DATA = Path(__file__).parent / "data"
 
 
