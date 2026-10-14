@@ -191,13 +191,20 @@ Then write (or update) `generated-notes.md` in the workflow repository, with:
 
 Keep it factual, matching the actual changes; the same table is the summary to give the user.
 
-## 7. Commit and push (only when the user asks)
+## 7. Commit and push
 
-Never commit on your own. When the user asks: commit the workflow repository's changes on its
-main branch (no feature branch unless asked), with a message summarising the conversion, and
-push to `origin`. If the procedure also changed this template (skill, `biomero_template`), commit
-and push those to the template's main branch as a separate commit, after its tests pass.
-Report the commit hashes, and check the CI run of each push.
+Once the checks in step 6 pass, commit and push — unless the user said not to commit (then stop
+here and leave the changes uncommitted, and do this step only when asked):
+
+- **The workflow repository** (new or adapted in place): commit all changes on its main
+  branch (no feature branch unless asked), with a message summarising the creation/conversion
+  (the tasks-performed table in `generated-notes.md` is the basis), and push to `origin`. For a
+  new repository without a remote, ask where to create it before pushing.
+- **This template**, if the procedure changed it (skill, `biomero_template`): a separate commit on
+  the template's main branch, after its tests pass, pushed to `origin`.
+
+Report the commit hashes and check the CI run of each push. Pushing does not publish the
+image or register the workflow; that is step 8.
 
 ## 8. Release and register (tell the user; do not publish without being asked)
 
