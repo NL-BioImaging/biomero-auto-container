@@ -109,7 +109,8 @@ def run(argv: Sequence[str] | None = None, *, spec: str | Path | BilayersSpec, t
             raise SpecError(f"BIOMERO_RO_CRATE_INPUT must be 'reference' or 'copy', not {settings['ro_crate_input']!r}")
         final_outputs = {name: path for name, path in values.outputs.items() if path is not None}
         default_workdir = (next(iter(final_outputs.values())).resolve().parent if final_outputs else Path.cwd())
-        work = Path(_setting("workdir", workdir, default_workdir)) / f".biomero-work-{uuid.uuid4().hex[:8]}"
+        # not a hidden (dot) folder: tools skip those, e.g. CellProfiler's default Images filter
+        work = Path(_setting("workdir", workdir, default_workdir)) / f"biomero-work-{uuid.uuid4().hex[:8]}"
         work.mkdir(parents=True)
         try:
             _run(spec, values, tool, final_outputs, work, settings)

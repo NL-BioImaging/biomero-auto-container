@@ -30,8 +30,20 @@ def test_zarr_in_zarr_out_with_ro_crate(spec, config_path, zarr_folder):
         assert (out / entity_id).exists(), f"{entity_id} not in the crate"
     # the input is described but not copied: BIOMERO would import it again from data/out
     assert not (out / "in").exists()
-    assert not list(data_path.glob("data/.biomero-work-*"))  # staging removed
+    assert not list(data_path.glob("data/biomero-work-*"))  # staging removed
     assert not list(data_path.glob("data/.ro-crate-*"))
+
+
+def test_staging_folder_is_not_hidden(spec, tmp_path, tiff_folder):
+    """Tools skip hidden (dot) folders, e.g. CellProfiler's default Images filter."""
+    seen = {}
+
+    def tool(ctx):
+        seen["workdir"] = ctx.workdir
+        (ctx.outputs["segmented_images"] / "x.txt").write_text("x")
+
+    assert run(["--folder", str(tiff_folder), "--save_dir", str(tmp_path / "out")], spec=spec, tool=tool) == 0
+    assert not any(part.startswith(".") for part in seen["workdir"].relative_to(tmp_path).parts)
 
 
 def test_ro_crate_with_input_copy(spec, config_path, zarr_folder):

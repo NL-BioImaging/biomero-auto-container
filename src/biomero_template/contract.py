@@ -8,8 +8,7 @@ from pathlib import Path, PurePath
 
 import yaml
 
-# omero rendering block as in OMERO exports (biomero-converter output lacks it, and
-# biomero-converter 0.2.0 cannot convert OME-Zarr without it back to TIFF)
+# omero rendering block as in OMERO exports (biomero-converter output lacks it)
 OMERO_METADATA = {"channels": [{"active": True, "color": "FFFFFF", "label": "c0",
                                 "window": {"start": 0, "end": 1000, "min": 0, "max": 65535}}],
                   "rdefs": {"defaultT": 0, "defaultZ": 0, "model": "greyscale"}}

@@ -20,11 +20,26 @@ def test_zarr_tiff_round_trip(tmp_path, tiff_folder):
     np.testing.assert_array_equal(np.squeeze(tifffile.imread(tiff)), original)
 
 
-@pytest.mark.xfail(strict=True, raises=Exception,
-                   reason="biomero-converter 0.2.0: convert() indexes an empty window for OME-Zarr without omero metadata")
 def test_zarr_without_omero_metadata_to_tiff(tmp_path, tiff_folder):
+    """Fixed in biomero-converter 0.2.1."""
     [store] = convert(tiff_folder / "blobs.tif", tmp_path / "zarr", ZARR)
-    convert(store, tmp_path / "tiff_out", TIFF)
+    [tiff] = convert(store, tmp_path / "tiff_out", TIFF)
+    np.testing.assert_array_equal(np.squeeze(tifffile.imread(tiff)), tifffile.imread(tiff_folder / "blobs.tif"))
+
+
+def test_rgb_and_multichannel_zarr_to_tiff(tmp_path):
+    """3-channel OME-Zarr (8-bit RGB, 16-bit channels) to TIFF, names kept; fixed in biomero-converter 0.2.1."""
+    rgb = np.random.default_rng(0).integers(0, 256, (64, 80, 3), dtype=np.uint8)
+    channels = np.random.default_rng(1).integers(0, 4096, (3, 64, 80), dtype=np.uint16)
+    tifffile.imwrite(tmp_path / "sample.ome.tif", rgb, photometric="rgb", ome=True,
+                     metadata={"axes": "YXS", "Name": "sample"})
+    tifffile.imwrite(tmp_path / "fluo_image.ome.tif", channels, ome=True,
+                     metadata={"axes": "CYX", "Name": "fluo_image"})
+    for name, data in (("sample", rgb), ("fluo_image", channels)):
+        [store] = convert(tmp_path / f"{name}.ome.tif", tmp_path / "zarr", ZARR)
+        [tiff] = convert(store, tmp_path / "tiff_out", TIFF)
+        assert tiff.name == f"{name}.ome.tiff"
+        np.testing.assert_array_equal(np.squeeze(tifffile.imread(tiff)), data)
 
 
 def test_prepare_input_passes_accepted_formats_through(tiff_folder, tmp_path):
