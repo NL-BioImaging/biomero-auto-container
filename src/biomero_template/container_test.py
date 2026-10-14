@@ -37,11 +37,12 @@ def image_name(config: Path) -> tuple[str, str]:
 
 
 def build_context(config: Path) -> Path:
-    """The repository root (the folder with pyproject.toml) holding the config."""
+    """The build context: the template root (with pyproject.toml) holding the config, as for the
+    examples; otherwise the config's own folder, as in a workflow repository."""
     for folder in [config.resolve().parent, *config.resolve().parents]:
         if (folder / "pyproject.toml").exists():
             return folder
-    raise RuntimeError(f"No repository root (pyproject.toml) above {config}")
+    return config.resolve().parent
 
 
 def build_command(runtime: str, context: Path, image: str, platform: str, config: Path | None = None) -> list[str]:

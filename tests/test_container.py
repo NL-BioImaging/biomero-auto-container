@@ -76,3 +76,11 @@ def _engine():
 def test_build_and_run_like_biomero(tmp_path):
     outputs = ct.container_test(WORKFLOW_CONFIG, keep=tmp_path / "job")
     assert outputs, "no outputs"
+
+
+def test_build_context_is_the_config_folder_in_a_workflow_repository(tmp_path):
+    config = tmp_path / "workflow" / "config.yaml"
+    config.parent.mkdir()
+    config.write_text("")
+    assert ct.build_context(config) == config.parent.resolve()
+    assert ct.build_context(WORKFLOW_CONFIG) == ROOT
