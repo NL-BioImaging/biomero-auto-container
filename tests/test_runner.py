@@ -116,3 +116,15 @@ def test_tool_function_gets_context(spec, tmp_path, tiff_folder):
 ])
 def test_output_target(policy, inputs, outputs, expected):
     assert output_target(policy, inputs, outputs) == expected
+
+
+def test_file_outputs_are_kept_in_the_ro_crate(spec, tmp_path, tiff_folder):
+    """File outputs (e.g. CSV tables) stay files with their content; fixed in fair-metadata-integration 0.2.1."""
+    def tool(ctx):
+        (ctx.outputs["segmented_images"] / "Nuclei.csv").write_text("ObjectNumber,Area\n1,42\n")
+
+    out = tmp_path / "out"
+    assert run(["--folder", str(tiff_folder), "--save_dir", str(out)], spec=spec, tool=tool) == 0
+    assert (out / "Nuclei.csv").read_text() == "ObjectNumber,Area\n1,42\n"
+    entities = {entity["@id"]: entity for entity in json.loads((out / "ro-crate-metadata.json").read_text())["@graph"]}
+    assert entities["Nuclei.csv"]["@type"] == "File"
