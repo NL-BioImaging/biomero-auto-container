@@ -1,0 +1,149 @@
+"""Container entrypoint logic: resolve values, convert inputs, run the tool, convert outputs, write RO-Crate.
+
+Settings can be passed to :func:`run` or overridden with environment variables:
+
+``BIOMERO_CONVERT_INPUTS``  convert input images to a format the spec accepts (default ``true``)
+``BIOMERO_OUTPUT_FORMAT``   ``auto`` (OME-Zarr back if OME-Zarr came in), ``zarr``, ``tiff`` or ``keep``
+``BIOMERO_ZARR_FORMAT``     biomero-converter zarr format (default ``omezarr04``)
+``BIOMERO_RO_CRATE``        write RO-Crate metadata into the output folder (default ``true``)
+``BIOMERO_WORKDIR``         folder for staging data (default: next to the output folder)
+"""
+from __future__ import annotations
+
+import copy
+import logging
+import os
+import shlex
+import shutil
+import subprocess
+import sys
+import uuid
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Callable, Sequence
+
+from . import conversion
+from .spec import BilayersSpec, RunValues, SpecError, to_bool
+
+logger = logging.getLogger("biomero_template")
+
+Tool = Callable[["RunContext"], None]
+
+
+@dataclass
+class RunContext:
+    """What a tool function gets: the spec, the resolved values and the folders to use."""
+
+    spec: BilayersSpec
+    values: RunValues  # as received; outputs are the final (BIOMERO) folders
+    inputs: dict[str, Path]  # folders the tool reads (converted copies if needed)
+    outputs: dict[str, Path]  # folders the tool writes (staging folders if outputs get converted)
+    workdir: Path
+
+    @property
+    def params(self) -> dict:
+        return self.values.params
+
+    def tool_values(self) -> RunValues:
+        """The values with input/output folders replaced by the folders the tool should use."""
+        values = copy.deepcopy(self.values)
+        replaced = {Path(self.values.outputs[name]): path for name, path in self.outputs.items() if self.values.outputs.get(name)}
+        values.inputs.update(self.inputs)
+        values.outputs.update(self.outputs)
+        for name in self.spec.output_dir_params():
+            if values.params.get(name) and Path(values.params[name]) in replaced:
+                values.params[name] = str(replaced[Path(values.params[name])])
+        return values
+
+    def command(self, cli_command: str | Sequence[str] | None = None) -> list[str]:
+        """The tool command line, built from the spec (bilayers' generate_cli_command)."""
+        return self.spec.command(self.tool_values(), cli_command)
+
+
+def run_command(ctx: RunContext) -> None:
+    """Default tool: run ``exec_function.cli_command`` with the spec's arguments."""
+    argv = ctx.command()
+    logger.info("Running: %s", shlex.join(argv))
+    subprocess.run(argv, check=True)
+
+
+def _setting(name: str, value, default):
+    env = os.environ.get(f"BIOMERO_{name.upper()}")
+    if env is not None:
+        return env
+    return default if value is None else value
+
+
+def run(argv: Sequence[str] | None = None, *, spec: str | Path | BilayersSpec, tool: Tool | None = None,
+        convert_inputs: bool | None = None, output_format: str | None = None, zarr_format: str | None = None,
+        ro_crate: bool | None = None, workdir: str | Path | None = None) -> int:
+    """Run the workflow; returns the process exit code."""
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s", stream=sys.stdout)
+    try:
+        spec = spec if isinstance(spec, BilayersSpec) else BilayersSpec(spec)
+        values = spec.parse_args(argv)
+        logger.info("Values: %s", values.as_dict())
+        if tool is None:
+            entrypoint = Path(sys.argv[0]).name
+            if entrypoint.endswith(".py") and entrypoint in [Path(arg).name for arg in shlex.split(spec.cli_command)]:
+                raise SpecError(f"exec_function.cli_command runs {entrypoint} itself; pass tool= to run() instead")
+            tool = run_command
+        settings = {
+            "convert_inputs": to_bool(_setting("convert_inputs", convert_inputs, True)),
+            "output_format": _setting("output_format", output_format, "auto"),
+            "zarr_format": _setting("zarr_format", zarr_format, None),
+            "ro_crate": to_bool(_setting("ro_crate", ro_crate, True)),
+        }
+        final_outputs = {name: path for name, path in values.outputs.items() if path is not None}
+        default_workdir = (next(iter(final_outputs.values())).resolve().parent if final_outputs else Path.cwd())
+        work = Path(_setting("workdir", workdir, default_workdir)) / f".biomero-work-{uuid.uuid4().hex[:8]}"
+        work.mkdir(parents=True)
+        try:
+            _run(spec, values, tool, final_outputs, work, settings)
+        finally:
+            shutil.rmtree(work, ignore_errors=True)
+        return 0
+    except Exception as error:  # noqa: BLE001 - report any failure as a non-zero exit code
+        logger.exception("Workflow failed: %s", error)
+        return 1
+
+
+def _run(spec, values, tool, final_outputs, work, settings) -> None:
+    tool_inputs, input_formats = {}, set()
+    for name in spec.folder_inputs():
+        path = values.inputs.get(name)
+        if path is None:
+            continue
+        item = spec.inputs[name]
+        accepted = conversion.normalize_formats(item.get("format")) if settings["convert_inputs"] and item["type"] == "image" else set()
+        tool_inputs[name], found = conversion.prepare_input(path, accepted, work / "in" / name, settings["zarr_format"])
+        input_formats |= found
+
+    image_outputs = [name for name in final_outputs if spec.outputs[name].get("type") == "image"]
+    output_formats = set().union(*(conversion.normalize_formats(spec.outputs[name].get("format")) for name in image_outputs))
+    target = conversion.output_target(settings["output_format"], input_formats, output_formats) if image_outputs else None
+    staging = {}
+    for name, final in final_outputs.items():
+        if target and name in image_outputs:
+            staging.setdefault(final, work / "out" / str(len(staging)))
+        final.mkdir(parents=True, exist_ok=True)
+    tool_outputs = {name: staging.get(final, final) for name, final in final_outputs.items()}
+    for folder in staging.values():
+        folder.mkdir(parents=True, exist_ok=True)
+
+    tool(RunContext(spec=spec, values=values, inputs=tool_inputs, outputs=tool_outputs, workdir=work))
+
+    for final, folder in staging.items():
+        conversion.finalize_output(folder, final, target, settings["zarr_format"])
+
+    if settings["ro_crate"] and final_outputs and tool_inputs:
+        from .fair import CRATE_METADATA, write_ro_crate
+
+        dest = next(iter(final_outputs.values()))
+        outputs = [entry for folder in dict.fromkeys(final_outputs.values()) for entry in sorted(folder.iterdir())
+                   if entry.name not in (CRATE_METADATA, spec.path.name)]
+        input_path = values.inputs[next(name for name in spec.folder_inputs() if name in tool_inputs)]
+        write_ro_crate(spec.path, input_path, outputs, dest)
+
+
+__all__ = ["RunContext", "run", "run_command"]

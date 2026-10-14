@@ -1,0 +1,120 @@
+# Bilayers spec of this workflow; BIOMERO reads it directly from the repository (at a release tag).
+# Example: bilayers' classical segmentation algorithm (bilayers-algorithms). It reads TIFF,
+# so OME-Zarr inputs from BIOMERO are converted to TIFF and its TIFF labels back to OME-Zarr.
+citations:
+  - name: "Classical Segmentation"
+    doi: "https://doi.org/10.5281/zenodo.17652333"
+    license: "BSD-3-Clause"
+    description: "Segments images using classical thresholding methods: Otsu and Li"
+
+docker_image:
+  org: your-dockerhub-org
+  name: w_classical_segmentation
+  tag: "v0.1.0"
+  platform: "linux/amd64"
+
+algorithm_folder_name: "classical_segmentation"
+
+exec_function:
+  name: "generate_cli_command"
+  # the tool inside the container; the container entrypoint (wrapper.py) calls it
+  cli_command: "python -m bilayers_algorithms.classical_segmentation.classical_segmentation"
+  hidden_args:
+
+inputs:
+  - name: input_images
+    type: image
+    label: "Images to segment"
+    subtype:
+      - grayscale
+    description: "Folder of images to segment"
+    cli_tag: "--folder"
+    cli_order: 1
+    default: "directory"
+    optional: False
+    format:
+      - tiff
+    folder_name: "/data/in"
+    file_count: multiple
+    unique_string:
+      - "*"
+    section_id: "inputs"
+    mode: "beginner"
+    depth: False
+    timepoints: False
+    tiled: False
+    pyramidal: False
+
+outputs:
+  - name: segmented_images
+    type: image
+    label: "Segmented Images"
+    subtype:
+      - label
+    description: "Label images"
+    cli_tag: "None"
+    cli_order: 0
+    default: "directory"
+    optional: False
+    format:
+      - tiff
+    folder_name: "/data/out"
+    file_count: multiple
+    unique_string:
+      - "_output"
+    section_id: "outputs"
+    mode: "beginner"
+    depth: False
+    timepoints: False
+    tiled: False
+    pyramidal: False
+
+parameters:
+  - name: threshold_method
+    type: radio
+    label: "Threshold method"
+    description: "Threshold method used to segment the image"
+    options:
+      - label: "Otsu"
+        value: "otsu"
+      - label: "Li"
+        value: "li"
+    default: "otsu"
+    cli_tag: "--threshold_method"
+    cli_order: 2
+    optional: False
+    section_id: "input-args"
+    mode: "beginner"
+  - name: min_diameter
+    type: float
+    label: "Minimum object diameter"
+    description: "Minimum diameter of objects in pixels"
+    default: 5
+    cli_tag: "--min_size"
+    cli_order: 3
+    optional: False
+    section_id: "input-args"
+    mode: "beginner"
+  - name: max_diameter
+    type: float
+    label: "Maximum object diameter"
+    description: "Maximum diameter of objects in pixels"
+    default: 20
+    cli_tag: "--max_size"
+    cli_order: 4
+    optional: False
+    section_id: "input-args"
+    mode: "beginner"
+  - name: save_dir
+    type: textbox
+    label: "Save directory"
+    description: "Directory to save output files (set by BIOMERO)"
+    output_dir_set: True
+    default: "/data/out"
+    cli_tag: "--save_dir"
+    cli_order: 5
+    optional: True
+    section_id: "output-args"
+    mode: "advanced"
+
+display_only:

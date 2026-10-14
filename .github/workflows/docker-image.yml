@@ -1,0 +1,36 @@
+name: Docker image
+
+# BIOMERO picks the image version from the repository tag, so publish on release.
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Image name from config.yaml
+        id: image
+        run: |
+          python3 - <<'PY' >> "$GITHUB_OUTPUT"
+          import yaml
+          image = yaml.safe_load(open("config.yaml"))["docker_image"]
+          print(f"name={image['org']}/{image['name']}")
+          print(f"tag={image['tag']}")
+          PY
+      - name: Release tag must match docker_image.tag
+        if: github.event_name == 'release'
+        run: test "${{ github.event.release.tag_name }}" = "${{ steps.image.outputs.tag }}"
+      - uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - uses: docker/build-push-action@v6
+        with:
+          push: true
+          platforms: linux/amd64
+          tags: |
+            ${{ steps.image.outputs.name }}:${{ steps.image.outputs.tag }}
+            ${{ steps.image.outputs.name }}:latest

@@ -1,0 +1,80 @@
+{
+  "name": "NucleiSegmentation-CellProfiler",
+  "description": "Workflow for nuclei segmentation in CellProfiler",
+  "container-image": {
+    "image": "neubiaswg5/w_nucleisegmentation-cellprofiler",
+    "type": "singularity"
+  },
+  "command-line": "python wrapper.py CYTOMINE_HOST CYTOMINE_PUBLIC_KEY CYTOMINE_PRIVATE_KEY CYTOMINE_ID_PROJECT CYTOMINE_ID_SOFTWARE NUCLEI_DIAMETER_RANGE SIZE_SMOOTHING_FILTER",
+  "inputs": [
+    {
+      "id": "cytomine_host",
+      "value-key": "@ID",
+      "command-line-flag": "--@id",
+      "name": "BIAFLOWS host",
+      "set-by-server": true,
+      "optional": false,
+      "type": "String"
+    },
+    {
+      "id": "cytomine_public_key",
+      "value-key": "@ID",
+      "command-line-flag": "--@id",
+      "name": "BIAFLOWS public key",
+      "set-by-server": true,
+      "optional": false,
+      "type": "String"
+    },
+    {
+      "id": "cytomine_private_key",
+      "value-key": "@ID",
+      "command-line-flag": "--@id",
+      "name": "BIAFLOWS private key",
+      "set-by-server": true,
+      "optional": false,
+      "type": "String"
+    },
+    {
+      "id": "cytomine_id_project",
+      "value-key": "@ID",
+      "command-line-flag": "--@id",
+      "name": "BIAFLOWS project ID",
+      "set-by-server": true,
+      "optional": false,
+      "type": "Number"
+    },
+    {
+      "id": "cytomine_id_software",
+      "value-key": "@ID",
+      "command-line-flag": "--@id",
+      "name": "BIAFLOWS software ID",
+      "set-by-server": true,
+      "optional": false,
+      "type": "Number"
+    },
+    {
+      "id": "nuclei_diameter_range",
+      "value-key": "@ID",
+      "command-line-flag": "--@id",
+      "name": "Typical diameter of objects, in pixel units (Min,Max)",
+      "description": "Typical diameter of objects, in pixel units (Min,Max)",
+      "default-value": "15,4000",
+      "set-by-server": false,
+      "optional": true,
+      "type": "String"
+    },
+    {
+      "id": "size_smoothing_filter",
+      "value-key": "@ID",
+      "command-line-flag": "--@id",
+      "name": "Size of smoothing filter",
+      "description": "Size of smoothing filter",
+      "default-value": 5,
+      "set-by-server": false,
+      "optional": true,
+      "type": "Number"
+    }
+  ],
+
+  "schema-version": "cytomine-0.1"
+}
