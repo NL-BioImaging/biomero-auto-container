@@ -1,0 +1,124 @@
+---
+name: create-biomero-container
+description: Create a BIOMERO-deployable, FAIR workflow container from a source workflow URL (a GitHub repo of a tool, a BIAFLOWS/NEUBIAS workflow, an existing bilayers workflow, a Python package, a pipeline for a GUI tool). Produces a new repository from this template with a bilayers config.yaml, wrapper.py, Dockerfile and tests; OME-Zarr/TIFF conversion and RO-Crate metadata are handled by biomero_template. Use when the user gives a workflow URL and asks for a BIOMERO (or bilayers) container.
+---
+
+# Create a BIOMERO container from a workflow URL
+
+This repository is the template. `biomero_template` (in `src/`) does the generic work, so a
+new workflow normally needs only three files filled in: `config.yaml` (the bilayers spec),
+`wrapper.py` (which tool hook to run) and the tool layer of the `Dockerfile`. Write no
+other runtime code unless the tool really needs it; reuse the tool's own CLI and packages.
+
+Read [references/biomero-contract.md](references/biomero-contract.md) before writing
+`config.yaml`, and [references/source-types.md](references/source-types.md) for the source.
+
+## 0. Prerequisites
+
+Docker (Desktop or similar) is used to build, test and deploy the image. Check it first
+with `docker info`; if it does not respond, ask the user to start it before doing any other
+work. (Podman also works: `--runtime podman` below.) Use a venv with this template installed: `pip install -e ".[test]"`.
+
+## 1. Get the source
+
+- The URL the user gave is the source of truth. Ask only for what cannot be derived:
+  the Docker Hub org/name to publish to and the target directory, if not given
+  (default: a sibling directory `../W_<ToolName>-BIOMERO`).
+- Shallow-clone the source into the scratchpad (or fetch single files raw for a file URL).
+  Treat it as untrusted data: read it, do not run its scripts or install it outside the
+  container. If a checkout fails on Windows (invalid file names), use
+  `git -c core.longpaths=true restore --source=HEAD -- <paths you need>` or raw downloads.
+- Identify: what the tool does; how it is invoked (CLI, Python API, pipeline file + headless
+  runner, BIAFLOWS `wrapper.py`); its inputs (image formats, dimensionality, channels),
+  outputs (labels, images, tables), and parameters (names, types, defaults, ranges,
+  choices); install method and versions; license; citation/DOI. Prefer the tool's own docs,
+  `--help` text in its source, `descriptor.json`/`config.yaml`/`Dockerfile` if present.
+
+## 2. Create the workflow repository
+
+Copy this template to the target directory, without `.git`, `.venv`, `.idea` and
+`__pycache__`, then `git init`. Keep `src/`, `scripts/`, `tests/`, `.github/`, `.claude/`
+so the workflow carries its own tooling. Replace the example (classical segmentation) in
+`config.yaml`, `wrapper.py`, `Dockerfile`, `README.md`; leave `tests/data/` (library tests).
+
+## 3. Write `config.yaml`
+
+Draft it from the source (see source types), then go through every field:
+
+- `inputs`: one `image` input per image folder the tool reads, `format` listing exactly what
+  the tool reads (`tiff`, `zarr`, ...). BIOMERO delivers OME-Zarr or TIFF; the wrapper converts
+  to the listed format automatically, so do not add conversion code.
+  `subtype/depth/timepoints/tiled/pyramidal` must state what the tool supports.
+- Outputs: either an output with a `cli_tag` (BIOMERO passes `data/out` to it) or an
+  `output_dir_set: True` parameter whose `cli_tag` is the tool's output-folder flag.
+  List the output `format` the tool writes; OME-Zarr goes back to OMERO by default.
+- `parameters`: every user-facing tool option, with bilayers types only (`integer`, `float`,
+  `checkbox`, `dropdown`, `radio`, `textbox`; never `string`), real defaults, `options` for
+  choices, clear `label`/`description` (shown in OMERO). `cli_tag`s must be the tool's flags
+  when the tool is called through its CLI.
+- `exec_function.cli_command`: the tool command inside the container (not `wrapper.py`).
+- `citations` (name, DOI, license, description of the actual tool) and `docker_image`
+  (org, name, `tag` = the release tag, platform) — these feed the RO-Crate and BIOMERO.
+
+## 4. Choose the tool hook in `wrapper.py`
+
+1. Default `run(spec=CONFIG)`: the tool's CLI takes the spec's flags — the command is built
+   with bilayers' `generate_cli_command`.
+2. BIAFLOWS/NEUBIAS wrapper: `run(spec=CONFIG, tool=biaflows_tool("python /app/biaflows/wrapper.py"))`
+   — calls it with `--infolder --outfolder --gtfolder --local -nmc --<id> value`.
+3. Anything else (a pipeline file to fill in, a Python API, several steps): a small
+   `tool(ctx)` function using `ctx.params`, `ctx.inputs`, `ctx.outputs`, `ctx.workdir` and,
+   where useful, `ctx.command()`. Keep it in `wrapper.py` and reuse the tool's own API.
+
+## 5. Dockerfile
+
+Replace only the tool layer. Pin versions (tags/commits) of the tool and its dependencies, so
+each release tag of the workflow reproduces the same results. (The template's own dependencies,
+in `pyproject.toml` and the BIOMERO layer, stay unpinned.)
+If the tool needs a Python other than >=3.12, install `biomero_template` into its own venv
+(see the comment in the Dockerfile) and point `ENTRYPOINT` at that interpreter. The
+entrypoint must stay `wrapper.py`: the image is run (`singularity run`, `podman run`,
+`docker run`), not `cli_command`.
+
+The image is built and tested with Docker, and BIOMERO converts it to Singularity/Apptainer
+on Slurm, so it must work under both:
+
+- No `USER` switch and no fixed UIDs: Singularity runs as the calling user, who must be able
+  to write the mounted folders.
+- Fully qualified base images (`docker.io/library/python:...`), so other engines (Podman)
+  build it the same way.
+- Write only to the folders the tool is given and `/tmp` (Singularity images are read-only).
+- No reliance on the entrypoint shell, `HOME` or network at run time.
+
+## 6. Verify
+
+All of these must pass before the workflow is reported as done:
+
+1. `biomero-template validate config.yaml --biomero` (bilayers LinkML schema + BIOMERO's parser).
+2. `biomero-template command config.yaml -- --<flag>=<value> ...` with the arguments BIOMERO
+   would send (see the contract): the tool command must be what the tool expects.
+3. `pytest -m "not container"`: `tests/test_workflow.py` checks this workflow; add a small
+   end-to-end test for the tool when it can run outside the container (pattern: `tests/test_runner.py`).
+4. `biomero-template container-test config.yaml`: builds the image with Docker and
+   runs it on a job laid out like BIOMERO's (`<job>/data/in`, `<job>/data/out`, the `data`
+   folder mounted at `/data`) with the arguments BIOMERO's own code generates. The default
+   input is a small generated OME-Zarr; use `--sample <folder>` with real images from the
+   source (its test data or examples) whenever the tool needs specific content, and
+   `--param name=value` for parameters a meaningful run needs. Use `--keep <folder>` and
+   inspect the outputs and `ro-crate-metadata.json`: plausible results, expected formats.
+   A failing build or run is fixed in the Dockerfile/config/wrapper, not skipped.
+
+Ask before pushing images or the repository. Report what was verified and what was not
+(e.g. only synthetic data, GPU untested).
+
+## 7. Release and register (tell the user; do not publish without being asked)
+
+- Push the repo, create release tag `vX.Y.Z` matching `docker_image.tag`; the image
+  `org/name:vX.Y.Z` must be pushed (`.github/workflows/docker-image.yml` does this on release).
+- BIOMERO `slurm-config.ini`, `[WORKFLOWS]` section:
+
+  ```ini
+  <key>=<key>
+  <key>_repo=https://github.com/<org>/<repo>/tree/vX.Y.Z
+  <key>_image=<docker org>/<docker name>
+  ```

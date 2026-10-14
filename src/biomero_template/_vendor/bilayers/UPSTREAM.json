@@ -1,0 +1,9 @@
+{
+  "repository": "https://github.com/bilayer-containers/bilayers",
+  "commit": "ac0bd48660c9576ad5f20f724b3bb47f68802ddb",
+  "sha256": {
+    "parse.py": "e626d69fdef944a566b6cafe216cf38f5880010c6d94cc6a5bafb1bb275cde98",
+    "cli_generator.py": "689625d8635b23268f6fef6a2c2f42ea416aebb26a05c604527aaecb003b7b77",
+    "LICENSE": "6ceafd947a3f80a47ef06bb7508f3861941573c9c2cd4eb899c7e9da8d397233"
+  }
+}

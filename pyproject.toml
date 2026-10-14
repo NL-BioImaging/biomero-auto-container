@@ -1,0 +1,46 @@
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "biomero-template-container"
+version = "0.1.0"
+description = "Template for BIOMERO workflow containers described by a bilayers spec, with OME-Zarr conversion and RO-Crate metadata"
+readme = "README.md"
+license = "Apache-2.0"
+license-files = ["LICENSE"]
+requires-python = ">=3.12"
+dependencies = [
+    "pyyaml>=6.0.1",
+    # not on PyPI
+    "bilayers-schema @ git+https://github.com/bilayer-containers/bilayers-schema.git",
+    "biomero-converter>=0.2.0",
+    "fair-metadata-integration>=0.2.0",
+]
+
+[project.optional-dependencies]
+validate = ["linkml"]
+test = [
+    "pytest>=7.0",
+    "biomero-template-container[validate]",
+    # BIOMERO's own bilayers parsing, for the contract tests
+    "biomero>=2.5",
+    # the example tool in config.yaml
+    "bilayers-algorithms @ git+https://github.com/bilayer-containers/bilayers-algorithms.git",
+]
+
+[project.scripts]
+biomero-template = "biomero_template.cli:main"
+
+[project.urls]
+Repository = "https://github.com/NL-BioImaging/biomero-template-container"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+"biomero_template._vendor.bilayers" = ["LICENSE", "UPSTREAM.json"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = ["container: builds and runs the image (needs a running Docker engine)"]
