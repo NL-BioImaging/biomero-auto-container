@@ -11,7 +11,8 @@ If its image entrypoint is already a BIOMERO-aware wrapper, it may not need this
 
 ## BIAFLOWS / NEUBIAS workflow (`descriptor.json` with `schema-version: cytomine-0.1`, `wrapper.py`)
 
-- Draft: `biomero-template from-biaflows <descriptor URL or path> -o config.yaml`
+- Draft: `biomero-template from-biaflows <descriptor URL or path> -o config.yaml`, then delete
+  `descriptor.json` (BIOMERO would otherwise pick it before `config.yaml`).
   (`--input-format`/`--output-format` from what the wrapper reads/writes). Then fill in
   citations, license, image flags (`depth`, `timepoints`, ...), output `subtype`, labels.
 - Keep the original wrapper and its pipeline/macros unchanged in `/app/biaflows/`; install

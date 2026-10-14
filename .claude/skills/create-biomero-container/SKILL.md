@@ -5,10 +5,11 @@ description: Create a BIOMERO-deployable, FAIR workflow container from a source 
 
 # Create a BIOMERO container from a workflow URL
 
-This repository is the template. `biomero_template` (in `src/`) does the generic work, so a
-new workflow normally needs only three files filled in: `config.yaml` (the bilayers spec),
-`wrapper.py` (which tool hook to run) and the tool layer of the `Dockerfile`. Write no
-other runtime code unless the tool really needs it; reuse the tool's own CLI and packages.
+This repository is the template. `biomero_template` (in `src/`) does the generic work and is
+installed from GitHub into each workflow image, never copied: a workflow repository holds only
+`config.yaml` (the bilayers spec), `wrapper.py` (which tool hook to run), the `Dockerfile`, its
+tool's own files and a few tests. Write no other runtime code unless the tool really needs it;
+reuse the tool's own CLI and packages.
 
 Read [references/biomero-contract.md](references/biomero-contract.md) before writing
 `config.yaml`, and [references/source-types.md](references/source-types.md) for the source.
@@ -43,7 +44,9 @@ The defaults follow what BIOMERO currently expects, so keep them unless the depl
 
 Docker (Desktop or similar) is used to build, test and deploy the image. Check it first
 with `docker info`; if it does not respond, ask the user to start it before doing any other
-work. (Podman also works: `--runtime podman` below.) Use a venv with this template installed: `pip install -e ".[test]"`.
+work. (Podman also works: `--runtime podman` below.) Use a venv with the template installed:
+`pip install "biomero-template-container[test] @ git+https://github.com/NL-BioImaging/biomero-template-container.git"`
+(or `pip install -e "<template checkout>[test]"`).
 
 ## 1. Get the source
 
@@ -60,16 +63,32 @@ work. (Podman also works: `--runtime podman` below.) Use a venv with this templa
   choices); install method and versions; license; citation/DOI. Prefer the tool's own docs,
   `--help` text in its source, `descriptor.json`/`config.yaml`/`Dockerfile` if present.
 
-## 2. Create the workflow repository
+## 2. The workflow repository
 
-Copy this template to the target directory, without `.git`, `.venv`, `.idea` and
-`__pycache__`, then `git init`. Keep `src/`, `scripts/`, `tests/`, `.github/`, `.claude/` and
-`examples/` (the library tests use the example), so the workflow carries its own tooling.
+Either a new repository (default: a sibling directory, `git init`), or — when the user asks —
+the source repository itself, adapted in place (keep its history: `git mv`/`git rm`; do not
+commit unless asked). It gets:
 
-The template has no `config.yaml` and an empty tool layer in the `Dockerfile`: everything
-workflow-specific is written from the source in the next steps, nothing is adapted from the
-example. Use `examples/classical_segmentation/` only as a reference for the form of a
-finished workflow. Rewrite `README.md` for the workflow.
+- `config.yaml` — written from the source (step 3); the template has none.
+- `wrapper.py` — the template's root `wrapper.py`, with the tool hook (step 4).
+- `Dockerfile` — the template's root `Dockerfile` with the tool layer filled in (step 5).
+- `requirements-dev.txt` — `biomero-template-container[test] @ git+https://github.com/NL-BioImaging/biomero-template-container.git`.
+- `tests/test_workflow.py` (+ `pytest.ini` with `pythonpath = tests` and the `container`
+  marker) — see step 6.
+- `.github/workflows/ci.yml` (validate + pytest) and the template's `docker-image.yml`.
+- `.gitignore`, `.dockerignore`, and a `README.md` describing the workflow, its parameters,
+  outputs and BIOMERO registration.
+- `generated-notes.md` — how the repository was created or converted (see step 6).
+
+Do not copy `src/`, `tests/`, `scripts/`, `examples/` or `.claude/`.
+
+**Always remove any existing `descriptor.json` (and `descriptor.yaml`)** after drafting
+`config.yaml` from it (`git rm` when adapting in place). BIOMERO looks for `descriptor.json`,
+then `descriptor.yaml`, then `config.yaml`, so a leftover descriptor silently keeps the workflow
+in the old BIAFLOWS mode; it is also no longer copied into the image. `biomero-template
+to-biaflows` regenerates one if a BIAFLOWS-only deployment ever needs it. Remove other files of
+the old interface too (BIAFLOWS/Cytomine-only code and dependencies).
+Use `examples/classical_segmentation/` only as a reference for the form of a finished workflow.
 
 ## 3. Write `config.yaml`
 
@@ -106,8 +125,18 @@ Fill in only the tool layer, between the `# >>> tool layer` and `# <<< tool laye
 (keep the markers); change the base image only when the tool needs another one. Pin versions (tags/commits) of the tool and its dependencies, so
 each release tag of the workflow reproduces the same results. (The template's own dependencies,
 in `pyproject.toml` and the BIOMERO layer, stay unpinned.)
-If the tool needs a Python other than >=3.12, install `biomero_template` into its own venv
-(see the comment in the Dockerfile) and point `ENTRYPOINT` at that interpreter. The
+In the BIOMERO layer, install the template from GitHub instead of copying `src/`:
+`pip install "biomero-template-container @ git+https://github.com/NL-BioImaging/biomero-template-container.git"`.
+If the tool's image has no Python >= 3.12, give `biomero_template` its own environment and point
+`ENTRYPOINT` at it, e.g.:
+
+```dockerfile
+ENV UV_PYTHON_INSTALL_DIR=/opt/uv-python
+RUN python -m pip install uv && uv venv /opt/biomero --python 3.12     && uv pip install --no-cache --python /opt/biomero/bin/python "biomero-template-container @ git+https://github.com/NL-BioImaging/biomero-template-container.git"     && chmod -R a+rX /opt/biomero /opt/uv-python
+ENTRYPOINT ["/opt/biomero/bin/python", "/app/wrapper.py"]
+```
+
+The tool keeps running with its own Python (`cli_command`, e.g. `python /app/<tool script>`). The
 entrypoint must stay `wrapper.py`: the image is run (`singularity run`, `podman run`,
 `docker run`), not `cli_command`.
 
@@ -128,8 +157,12 @@ All of these must pass before the workflow is reported as done:
 1. `biomero-template validate config.yaml --biomero` (bilayers LinkML schema + BIOMERO's parser).
 2. `biomero-template command config.yaml -- --<flag>=<value> ...` with the arguments BIOMERO
    would send (see the contract): the tool command must be what the tool expects.
-3. `pytest -m "not container"`: `tests/test_workflow.py` checks this workflow; add a small
-   end-to-end test for the tool when it can run outside the container (pattern: `tests/test_runner.py`).
+3. `pytest -m "not container"` on the workflow's `tests/test_workflow.py`, which uses
+   `biomero_template`'s public API: `biomero_template.cli.main(["validate", "config.yaml", "--biomero"])`,
+   `contract.biomero_argv` + `BilayersSpec.command` (the tool command BIOMERO's arguments give),
+   Dockerfile checks (entrypoint `wrapper.py`, fully qualified `FROM`, no `USER`), a check that
+   no `descriptor.json`/`descriptor.yaml` exists, and a
+   `container`-marked test calling `container_test.container_test(...)` on sample data.
 4. `biomero-template container-test config.yaml`: builds the image with Docker and
    runs it on a job laid out like BIOMERO's (`<job>/data/in`, `<job>/data/out`, the `data`
    folder mounted at `/data`) with the arguments BIOMERO's own code generates. The default
@@ -145,7 +178,28 @@ All of these must pass before the workflow is reported as done:
 Ask before pushing images or the repository. Report what was verified and what was not
 (e.g. only synthetic data, GPU untested).
 
-## 7. Release and register (tell the user; do not publish without being asked)
+Then write (or update) `generated-notes.md` in the workflow repository, with:
+
+- a short intro: created from / converted in place from which source (URL, original format,
+  e.g. BIAFLOWS `descriptor.json` + `BiaflowsJob` wrapper), following this procedure, with a
+  link to biomero-template-container;
+- **Tasks performed**: a table `| Change | What it does |`, one row per file or group of files
+  (renames with `git mv`, removals with `git rm` and why, new `config.yaml` and the choices in
+  it, `wrapper.py` hook, `Dockerfile` layers, tests, CI, docs);
+- **Verified** / **Still to verify**: what the checks above actually covered (e.g. synthetic
+  data only) and what remains open, as a list. Update it when more is verified.
+
+Keep it factual, matching the actual changes; the same table is the summary to give the user.
+
+## 7. Commit and push (only when the user asks)
+
+Never commit on your own. When the user asks: commit the workflow repository's changes on its
+main branch (no feature branch unless asked), with a message summarising the conversion, and
+push to `origin`. If the procedure also changed this template (skill, `biomero_template`), commit
+and push those to the template's main branch as a separate commit, after its tests pass.
+Report the commit hashes, and check the CI run of each push.
+
+## 8. Release and register (tell the user; do not publish without being asked)
 
 - Push the repo, create release tag `vX.Y.Z` matching `docker_image.tag`; the image
   `org/name:vX.Y.Z` must be pushed (`.github/workflows/docker-image.yml` does this on release).

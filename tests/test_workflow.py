@@ -65,3 +65,8 @@ def test_base_images_are_fully_qualified(dockerfile):
 def test_no_user_switch(dockerfile):
     """Singularity runs as the calling user; a USER breaks writing the mounted folders."""
     assert _instructions(dockerfile, "USER") == []
+
+
+def test_no_descriptor_shadows_config():
+    """BIOMERO reads descriptor.json/descriptor.yaml before config.yaml."""
+    assert not [name for name in ("descriptor.json", "descriptor.yaml") if (ROOT / name).exists()]

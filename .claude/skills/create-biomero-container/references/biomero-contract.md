@@ -1,7 +1,8 @@
 # How BIOMERO runs a bilayers workflow
 
 From BIOMERO 2.x (`biomero/schema_parsers.py`, `biomero/slurm_client.py`), which reads the
-repository's `config.yaml` directly at the configured tag (no `descriptor.json` needed):
+repository's `config.yaml` directly at the configured tag. It looks for `descriptor.json`,
+`descriptor.yaml` and `config.yaml` in that order, so the repository must not contain a descriptor:
 
 - The config is mapped to biomero-schema by `BilayersSchemaAdapter`; types map as
   `checkbox`→boolean, `radio`/`dropdown`/`textbox`→string, `integer`/`float` as is,
