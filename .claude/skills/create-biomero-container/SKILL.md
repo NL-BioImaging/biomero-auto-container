@@ -13,6 +13,32 @@ other runtime code unless the tool really needs it; reuse the tool's own CLI and
 Read [references/biomero-contract.md](references/biomero-contract.md) before writing
 `config.yaml`, and [references/source-types.md](references/source-types.md) for the source.
 
+## The container's pipeline (all workflows)
+
+Every generated container runs these steps, in this order; the tool hook (step 4 below)
+only replaces "run the tool". Do not reimplement or skip any of them in `wrapper.py`.
+
+1. Resolve the values BIOMERO passes (`config.yaml`).
+2. Convert input images to a `format` the tool accepts (biomero-converter).
+3. Run the tool (the sub-package / wrapped container) into a staging folder.
+4. Convert the tool's output images back to OME-Zarr if needed (biomero-converter).
+5. FAIRification: fair-metadata-integration's `create_ro_crate` makes the output folder a
+   Workflow RO-Crate: `ro-crate-metadata.json`, `config.yaml` as the workflow (mainEntity,
+   language Bilayers), the outputs and the input as FormalParameters with EDAM formats.
+6. Optionally zip the whole output folder, stored without compression, as one file
+   (`BIOMERO_ZIP_OUTPUT=true`, or `run(..., zip_output=True)` in `wrapper.py`).
+
+The defaults follow what BIOMERO currently expects, so keep them unless the deployment differs:
+
+- **Not zipped.** BIOMERO zips `data/out` itself on Slurm, and `SLURM_Import_Results` imports
+  the images it finds (recursively) in it; it does not import images from a nested zip.
+  Zip only for a deployment that returns the folder as one archive (e.g. outside BIOMERO/Slurm).
+- **Input referenced, not copied** (`BIOMERO_RO_CRATE_INPUT=reference`). The crate describes
+  the input folder, but a copy in `data/out` would be imported into OMERO again;
+  `copy` puts the input data in the crate (useful together with the zip).
+- `ro-crate-metadata.json` and `config.yaml` are non-image files: BIOMERO attaches them to
+  OMERO when "attach file outputs" is enabled in the import.
+
 ## 0. Prerequisites
 
 Docker (Desktop or similar) is used to build, test and deploy the image. Check it first
@@ -105,8 +131,11 @@ All of these must pass before the workflow is reported as done:
    input is a small generated OME-Zarr; use `--sample <folder>` with real images from the
    source (its test data or examples) whenever the tool needs specific content, and
    `--param name=value` for parameters a meaningful run needs. Use `--keep <folder>` and
-   inspect the outputs and `ro-crate-metadata.json`: plausible results, expected formats.
-   A failing build or run is fixed in the Dockerfile/config/wrapper, not skipped.
+   inspect `<job>/data/out`: plausible results in the expected formats (OME-Zarr back when
+   OME-Zarr came in), `ro-crate-metadata.json` describing the config, input and every
+   output, no copy of the input images (by default), and, only when zipping is enabled, a
+   single uncompressed `<algorithm_folder_name>.zip` containing all of that. A failing build or run is fixed in the Dockerfile/config/wrapper,
+   not skipped.
 
 Ask before pushing images or the repository. Report what was verified and what was not
 (e.g. only synthetic data, GPU untested).

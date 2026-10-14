@@ -29,13 +29,33 @@ repository's `config.yaml` directly at the configured tag (no `descriptor.json` 
    `--params params.yaml`); validates choices, numbers and required values.
 2. For each `image` input whose files are not in the input's `format` list, converts them
    (biomero-converter) into a staging folder next to `data/out`.
-3. Runs the tool on the staging/real folders.
+3. Runs the tool into a staging folder.
 4. Converts outputs (`BIOMERO_OUTPUT_FORMAT`: `auto` gives OME-Zarr back when OME-Zarr came
    in and the tool writes TIFF; `zarr`, `tiff`, `keep`).
-5. Writes `ro-crate-metadata.json` and the config into `data/out` (fair-metadata-integration).
+5. FAIRification: `create_ro_crate` (fair-metadata-integration) writes the Workflow RO-Crate
+   into `data/out`: `ro-crate-metadata.json`, the config and the outputs; the input is
+   described in it (`BIOMERO_RO_CRATE_INPUT=reference`, default) or copied (`copy`).
+6. With `BIOMERO_ZIP_OUTPUT=true` (default `false`): replaces the contents of `data/out` by
+   `<algorithm_folder_name>.zip`, stored (no compression).
+
+## What BIOMERO does with `data/out`
+
+BIOMERO on Slurm zips `data/out` (7z/zip), copies the zip to the OMERO server, and
+`SLURM_Import_Results` (biomero-scripts) unzips it and:
+
+- imports every image it finds, recursively (`.tif`, `.ome.tif(f)`, `.png`, `.zarr`/`.ome.zarr`
+  and other Bio-Formats extensions; only the outermost Zarr stores) into the chosen
+  dataset/plate, or attaches them;
+- turns `.csv` files into OMERO tables (when chosen);
+- attaches other files (`.json`, `.yaml`, arrays, ...) only with "attach file outputs";
+- can attach the whole job zip to the project.
+
+It has no RO-Crate handling, and images inside a nested zip are not imported. Hence the
+defaults: no zip, and no input copy in `data/out`.
 
 Environment overrides: `BIOMERO_CONVERT_INPUTS`, `BIOMERO_OUTPUT_FORMAT`, `BIOMERO_ZARR_FORMAT`,
-`BIOMERO_RO_CRATE`, `BIOMERO_WORKDIR` (see `src/biomero_template/runner.py`).
+`BIOMERO_RO_CRATE`, `BIOMERO_RO_CRATE_INPUT`, `BIOMERO_ZIP_OUTPUT`, `BIOMERO_WORKDIR`
+(see `src/biomero_template/runner.py`).
 
 ## Running outside Slurm (Docker)
 

@@ -1,11 +1,19 @@
-"""Container entrypoint logic: resolve values, convert inputs, run the tool, convert outputs, write RO-Crate.
+"""Container entrypoint logic.
+
+Resolve values, convert inputs, run the tool, convert outputs back, FAIRify the output
+folder into a Workflow RO-Crate, and optionally zip it (stored) for the return to OMERO.
 
 Settings can be passed to :func:`run` or overridden with environment variables:
 
 ``BIOMERO_CONVERT_INPUTS``  convert input images to a format the spec accepts (default ``true``)
 ``BIOMERO_OUTPUT_FORMAT``   ``auto`` (OME-Zarr back if OME-Zarr came in), ``zarr``, ``tiff`` or ``keep``
 ``BIOMERO_ZARR_FORMAT``     biomero-converter zarr format (default ``omezarr04``)
-``BIOMERO_RO_CRATE``        write RO-Crate metadata into the output folder (default ``true``)
+``BIOMERO_RO_CRATE``        make the output folder a Workflow RO-Crate (default ``true``)
+``BIOMERO_RO_CRATE_INPUT``  ``reference`` the input in the crate (default) or ``copy`` it into the output folder
+``BIOMERO_ZIP_OUTPUT``      replace the output folder contents by one uncompressed zip (default ``false``)
+
+The defaults match what BIOMERO expects: it zips ``data/out`` itself and imports every image
+found in it (recursively), so the output is left unzipped and holds no copy of the input.
 ``BIOMERO_WORKDIR``         folder for staging data (default: next to the output folder)
 """
 from __future__ import annotations
@@ -76,7 +84,8 @@ def _setting(name: str, value, default):
 
 def run(argv: Sequence[str] | None = None, *, spec: str | Path | BilayersSpec, tool: Tool | None = None,
         convert_inputs: bool | None = None, output_format: str | None = None, zarr_format: str | None = None,
-        ro_crate: bool | None = None, workdir: str | Path | None = None) -> int:
+        ro_crate: bool | None = None, ro_crate_input: str | None = None, zip_output: bool | None = None,
+        workdir: str | Path | None = None) -> int:
     """Run the workflow; returns the process exit code."""
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s", stream=sys.stdout)
     try:
@@ -93,7 +102,11 @@ def run(argv: Sequence[str] | None = None, *, spec: str | Path | BilayersSpec, t
             "output_format": _setting("output_format", output_format, "auto"),
             "zarr_format": _setting("zarr_format", zarr_format, None),
             "ro_crate": to_bool(_setting("ro_crate", ro_crate, True)),
+            "ro_crate_input": _setting("ro_crate_input", ro_crate_input, "reference"),
+            "zip_output": to_bool(_setting("zip_output", zip_output, False)),
         }
+        if settings["ro_crate_input"] not in ("reference", "copy"):
+            raise SpecError(f"BIOMERO_RO_CRATE_INPUT must be 'reference' or 'copy', not {settings['ro_crate_input']!r}")
         final_outputs = {name: path for name, path in values.outputs.items() if path is not None}
         default_workdir = (next(iter(final_outputs.values())).resolve().parent if final_outputs else Path.cwd())
         work = Path(_setting("workdir", workdir, default_workdir)) / f".biomero-work-{uuid.uuid4().hex[:8]}"
@@ -122,28 +135,35 @@ def _run(spec, values, tool, final_outputs, work, settings) -> None:
     image_outputs = [name for name in final_outputs if spec.outputs[name].get("type") == "image"]
     output_formats = set().union(*(conversion.normalize_formats(spec.outputs[name].get("format")) for name in image_outputs))
     target = conversion.output_target(settings["output_format"], input_formats, output_formats) if image_outputs else None
+    # With FAIRification the tool always writes to staging: the RO-Crate is built into the output folder
+    fair = settings["ro_crate"] and bool(tool_inputs)
     staging = {}
     for name, final in final_outputs.items():
-        if target and name in image_outputs:
-            staging.setdefault(final, work / "out" / str(len(staging)))
         final.mkdir(parents=True, exist_ok=True)
+        if fair or (target and name in image_outputs):
+            staging.setdefault(final, work / "out" / str(len(staging)))
     tool_outputs = {name: staging.get(final, final) for name, final in final_outputs.items()}
     for folder in staging.values():
         folder.mkdir(parents=True, exist_ok=True)
 
     tool(RunContext(spec=spec, values=values, inputs=tool_inputs, outputs=tool_outputs, workdir=work))
 
+    input_path = next((values.inputs[name] for name in spec.folder_inputs() if name in tool_inputs), None)
     for final, folder in staging.items():
-        conversion.finalize_output(folder, final, target, settings["zarr_format"])
+        results = folder
+        if target:
+            results = work / "results" / folder.name if fair else final
+            conversion.finalize_output(folder, results, target, settings["zarr_format"])
+        if fair:
+            from .fair import write_ro_crate
 
-    if settings["ro_crate"] and final_outputs and tool_inputs:
-        from .fair import CRATE_METADATA, write_ro_crate
+            write_ro_crate(spec.path, input_path, sorted(results.iterdir()) if results.is_dir() else [], final,
+                           copy_input=settings["ro_crate_input"] == "copy")
 
-        dest = next(iter(final_outputs.values()))
-        outputs = [entry for folder in dict.fromkeys(final_outputs.values()) for entry in sorted(folder.iterdir())
-                   if entry.name not in (CRATE_METADATA, spec.path.name)]
-        input_path = values.inputs[next(name for name in spec.folder_inputs() if name in tool_inputs)]
-        write_ro_crate(spec.path, input_path, outputs, dest)
+    if settings["zip_output"]:
+        from .fair import zip_folder
 
+        for final in dict.fromkeys(final_outputs.values()):
+            zip_folder(final, spec.parsed.get("algorithm_folder_name") or "output")
 
 __all__ = ["RunContext", "run", "run_command"]

@@ -1,9 +1,10 @@
-"""Workflow RO-Crate for a run, using fair-metadata-integration."""
+"""FAIRification of a run's output: Workflow RO-Crate (fair-metadata-integration) and packaging."""
 from __future__ import annotations
 
 import logging
 import shutil
 import tempfile
+import zipfile
 from pathlib import Path
 from typing import Sequence
 
@@ -12,20 +13,40 @@ logger = logging.getLogger(__name__)
 CRATE_METADATA = "ro-crate-metadata.json"
 
 
-def write_ro_crate(config_path: Path, input_path: Path, output_paths: Sequence[Path], dest_folder: Path) -> Path:
-    """Write ``ro-crate-metadata.json`` (and the bilayers config it describes) into ``dest_folder``.
+def write_ro_crate(config_path: Path, input_path: Path, output_paths: Sequence[Path], dest_folder: Path,
+                   copy_input: bool = False) -> Path:
+    """Make ``dest_folder`` the run's RO-Crate, with fair-metadata-integration.
 
-    create_ro_crate copies all described data into the crate; to avoid duplicating
-    images in the folder BIOMERO imports, the crate is built in a temporary folder
-    and only its metadata and the config are kept, next to the outputs they describe.
+    The crate holds ``ro-crate-metadata.json``, the bilayers config (the workflow, as
+    mainEntity) and copies of each output, linked as FormalParameters. The input is
+    described the same way, but only copied with ``copy_input``: BIOMERO imports every
+    image found in the output folder, so a copy would re-import the input into OMERO.
     """
     from fair_metadata_integration import create_ro_crate
 
-    with tempfile.TemporaryDirectory(dir=dest_folder.parent, prefix=".ro-crate-") as tmp:
-        create_ro_crate(dest_path=tmp, workflow_schema_filename=str(config_path), input_path=str(input_path),
-                        output_paths=[str(path) for path in output_paths])
-        dest_folder.mkdir(parents=True, exist_ok=True)
-        for name in (CRATE_METADATA, config_path.name):
-            shutil.copy2(Path(tmp) / name, dest_folder / name)
-    logger.info("RO-Crate metadata written to %s", dest_folder / CRATE_METADATA)
+    with tempfile.TemporaryDirectory(dir=dest_folder.parent, prefix=".ro-crate-input-") as tmp:
+        if not copy_input:
+            # an empty stand-in with the input's name: described in the crate, no data copied
+            input_path = Path(tmp) / Path(input_path).name
+            input_path.mkdir()
+        create_ro_crate(dest_path=str(dest_folder), workflow_schema_filename=str(config_path),
+                        input_path=str(input_path), output_paths=[str(path) for path in output_paths])
+    if not copy_input:
+        (dest_folder / input_path.name).rmdir()
+    logger.info("RO-Crate written to %s", dest_folder)
     return dest_folder / CRATE_METADATA
+
+
+def zip_folder(folder: Path, name: str) -> Path:
+    """Replace the contents of ``folder`` by ``<name>.zip`` holding them, stored without compression."""
+    archive = folder.parent / f".{name}.zip.partial"
+    entries = sorted(folder.rglob("*"))
+    with zipfile.ZipFile(archive, "w", compression=zipfile.ZIP_STORED, allowZip64=True) as zip_file:
+        for entry in entries:
+            zip_file.write(entry, entry.relative_to(folder).as_posix())
+    for entry in folder.iterdir():
+        shutil.rmtree(entry) if entry.is_dir() and not entry.is_symlink() else entry.unlink()
+    target = folder / f"{name}.zip"
+    shutil.move(str(archive), str(target))
+    logger.info("Output zipped (stored) to %s", target)
+    return target

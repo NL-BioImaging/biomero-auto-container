@@ -6,6 +6,7 @@ import shlex
 import shutil
 import subprocess
 import tempfile
+import zipfile
 from pathlib import Path, PurePosixPath
 from typing import Sequence
 
@@ -68,8 +69,14 @@ def container_test(config: Path, *, context: Path | None = None, runtime: str = 
     outputs = sorted((data / "out").iterdir())
     if not outputs:
         raise RuntimeError(f"The workflow produced no files in {data / 'out'} (BIOMERO fails such jobs)")
-    if not (data / "out" / CRATE_METADATA).exists():
-        logger.warning("No %s in the output folder", CRATE_METADATA)
+    zips = [path for path in outputs if path.suffix == ".zip"]
+    if zips:
+        with zipfile.ZipFile(zips[0]) as archive:
+            has_crate = CRATE_METADATA in archive.namelist()
+    else:
+        has_crate = (data / "out" / CRATE_METADATA).exists()
+    if not has_crate:
+        logger.warning("No %s in the output", CRATE_METADATA)
     logger.info("Outputs in %s: %s", data / "out", [path.name for path in outputs])
     return outputs
 
