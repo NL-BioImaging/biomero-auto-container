@@ -75,7 +75,8 @@ commit unless asked). It gets:
 - `requirements-dev.txt` — `biomero-template-container[test] @ git+https://github.com/NL-BioImaging/biomero-template-container.git`.
 - `tests/test_workflow.py` (+ `pytest.ini` with `pythonpath = tests` and the `container`
   marker) — see step 6.
-- `.github/workflows/ci.yml` (validate + pytest) and the template's `docker-image.yml`.
+- `.github/workflows/ci.yml` (validate + pytest; `actions/setup-python` with `cache: pip` needs
+  `cache-dependency-path: requirements-dev.txt`) and the template's `docker-image.yml`.
 - `.gitignore`, `.dockerignore`, and a `README.md` describing the workflow, its parameters,
   outputs and BIOMERO registration.
 - `generated-notes.md` — how the repository was created or converted (see step 6).
