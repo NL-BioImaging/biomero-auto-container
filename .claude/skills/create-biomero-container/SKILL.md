@@ -200,8 +200,9 @@ here and leave the changes uncommitted, and do this step only when asked):
   branch (no feature branch unless asked), with a message summarising the creation/conversion
   (the tasks-performed table in `generated-notes.md` is the basis), and push to `origin`. For a
   new repository without a remote, ask where to create it before pushing.
-- **This template**, if the procedure changed it (skill, `biomero_template`): a separate commit on
-  the template's main branch, after its tests pass, pushed to `origin`.
+- **This template** is never committed or pushed by this procedure. If it changed (skill,
+  `biomero_template`), leave the changes uncommitted, run its tests, and tell the user what
+  changed; commit and push it only when the user asks.
 
 Report the commit hashes and check the CI run of each push. Pushing does not publish the
 image or register the workflow; that is step 8.
