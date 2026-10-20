@@ -31,7 +31,9 @@ to TIFF for it and its TIFF labels back to OME-Zarr.
    (`--infolder --outfolder --gtfolder --local -nmc --<name> value`), and/or `--params params.yaml`
    (`{name: value}`). Precedence: spec defaults < params file < command line. Gives a
    `RunValues` with `.as_dict()` for use inside the container.
-2. **Converts inputs** to a `format` the spec accepts (`conversion.py`).
+2. **Converts inputs** to a `format` the spec accepts (`conversion.py`). When the workflow accepts
+   more formats than the tool reads (e.g. `format: [ometiff, omezarr]` for a tool that reads TIFF),
+   `run(spec=..., tool_formats=["tiff"])` converts the others.
 3. **Runs the tool**: by default `exec_function.cli_command` with the arguments built by bilayers'
    own `generate_cli_command`; or `biaflows_tool(...)` for an existing BIAFLOWS wrapper
    (`biaflows.py`); or any `tool(ctx)` function.
@@ -43,7 +45,7 @@ to TIFF for it and its TIFF labels back to OME-Zarr.
 The defaults match BIOMERO: it zips `data/out` itself and imports every image found in it, so the
 output is not zipped and holds no copy of the input (`BIOMERO_RO_CRATE_INPUT=copy` adds it).
 
-Overrides via environment: `BIOMERO_CONVERT_INPUTS`, `BIOMERO_OUTPUT_FORMAT` (`auto|zarr|tiff|keep`),
+Overrides via environment: `BIOMERO_CONVERT_INPUTS`, `BIOMERO_TOOL_FORMATS` (comma-separated), `BIOMERO_OUTPUT_FORMAT` (`auto|zarr|tiff|keep`),
 `BIOMERO_ZARR_FORMAT`, `BIOMERO_RO_CRATE`, `BIOMERO_RO_CRATE_INPUT` (`reference|copy`),
 `BIOMERO_ZIP_OUTPUT`, `BIOMERO_WORKDIR`.
 

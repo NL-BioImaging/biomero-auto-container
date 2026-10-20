@@ -97,7 +97,9 @@ Draft it from the source (see source types), then go through every field:
 
 - `inputs`: one `image` input per image folder the tool reads, `format` listing exactly what
   the tool reads (`tiff`, `zarr`, ...). BIOMERO delivers OME-Zarr or TIFF; the wrapper converts
-  to the listed format automatically, so do not add conversion code.
+  to the listed format automatically, so do not add conversion code. If the workflow should
+  declare more formats than the tool reads (e.g. `ometiff` and `omezarr` for a TIFF tool), list
+  them all and pass the readable ones to `run(spec=CONFIG, tool_formats=["tiff"])` in `wrapper.py`.
   `subtype/depth/timepoints/tiled/pyramidal` must state what the tool supports.
 - Outputs: either an output with a `cli_tag` (BIOMERO passes `data/out` to it) or an
   `output_dir_set: True` parameter whose `cli_tag` is the tool's output-folder flag.

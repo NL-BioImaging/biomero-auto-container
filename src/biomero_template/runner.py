@@ -6,6 +6,8 @@ folder into a Workflow RO-Crate, and optionally zip it (stored) for the return t
 Settings can be passed to :func:`run` or overridden with environment variables:
 
 ``BIOMERO_CONVERT_INPUTS``  convert input images to a format the spec accepts (default ``true``)
+``BIOMERO_TOOL_FORMATS``    comma-separated image formats the tool reads, when fewer than the spec's
+                            input ``format`` (what the workflow accepts); the others are converted
 ``BIOMERO_OUTPUT_FORMAT``   ``auto`` (OME-Zarr back if OME-Zarr came in), ``zarr``, ``tiff`` or ``keep``
 ``BIOMERO_ZARR_FORMAT``     biomero-converter zarr format (default ``omezarr04``)
 ``BIOMERO_RO_CRATE``        make the output folder a Workflow RO-Crate (default ``true``)
@@ -82,8 +84,20 @@ def _setting(name: str, value, default):
     return default if value is None else value
 
 
+def _formats(value: Sequence[str] | str | None) -> set[str]:
+    """Tool formats from a list or a comma-separated string; empty when not set."""
+    if isinstance(value, str):
+        value = [entry.strip() for entry in value.split(",") if entry.strip()]
+    formats = conversion.normalize_formats(value)
+    unknown = [entry for entry in value or [] if not conversion.normalize_formats(entry)]
+    if unknown:
+        raise SpecError(f"tool formats must be zarr/tiff formats, not {unknown}")
+    return formats
+
+
 def run(argv: Sequence[str] | None = None, *, spec: str | Path | BilayersSpec, tool: Tool | None = None,
-        convert_inputs: bool | None = None, output_format: str | None = None, zarr_format: str | None = None,
+        convert_inputs: bool | None = None, tool_formats: Sequence[str] | str | None = None,
+        output_format: str | None = None, zarr_format: str | None = None,
         ro_crate: bool | None = None, ro_crate_input: str | None = None, zip_output: bool | None = None,
         workdir: str | Path | None = None) -> int:
     """Run the workflow; returns the process exit code."""
@@ -99,6 +113,7 @@ def run(argv: Sequence[str] | None = None, *, spec: str | Path | BilayersSpec, t
             tool = run_command
         settings = {
             "convert_inputs": to_bool(_setting("convert_inputs", convert_inputs, True)),
+            "tool_formats": _formats(_setting("tool_formats", tool_formats, None)),
             "output_format": _setting("output_format", output_format, "auto"),
             "zarr_format": _setting("zarr_format", zarr_format, None),
             "ro_crate": to_bool(_setting("ro_crate", ro_crate, True)),
@@ -129,7 +144,11 @@ def _run(spec, values, tool, final_outputs, work, settings) -> None:
         if path is None:
             continue
         item = spec.inputs[name]
-        accepted = conversion.normalize_formats(item.get("format")) if settings["convert_inputs"] and item["type"] == "image" else set()
+        accepted = set()
+        if settings["convert_inputs"] and item["type"] == "image":
+            accepted = conversion.normalize_formats(item.get("format"))
+            if settings["tool_formats"]:
+                accepted = settings["tool_formats"]
         tool_inputs[name], found = conversion.prepare_input(path, accepted, work / "in" / name, settings["zarr_format"])
         input_formats |= found
 

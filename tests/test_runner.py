@@ -107,6 +107,30 @@ def test_tool_function_gets_context(spec, tmp_path, tiff_folder):
     assert (out / "x.txt").exists()
 
 
+@pytest.mark.parametrize("tool_formats, env", [(["tiff"], None), (None, "ome-tiff")])
+def test_tool_formats_narrow_what_the_workflow_accepts(spec, tmp_path, tiff_folder, zarr_folder, monkeypatch,
+                                                       tool_formats, env):
+    """The workflow accepts OME-Zarr and TIFF, the tool reads TIFF: only the OME-Zarr is converted."""
+    spec.inputs["input_images"]["format"] = ["ometiff", "omezarr"]
+    if env:
+        monkeypatch.setenv("BIOMERO_TOOL_FORMATS", env)
+    seen = {}
+
+    def tool(ctx):
+        seen[ctx.values.inputs["input_images"].name] = sorted(path.name for path in ctx.inputs["input_images"].iterdir())
+        (ctx.outputs["segmented_images"] / "x.txt").write_text("x")
+
+    for folder in (tiff_folder, zarr_folder):
+        assert run(["--folder", str(folder), "--save_dir", str(tmp_path / "out" / folder.name)], spec=spec, tool=tool,
+                   tool_formats=tool_formats, ro_crate=False) == 0
+    assert seen == {"tiff": ["blobs.tif"], "in": ["blobs.ome.tiff"]}
+
+
+def test_tool_formats_must_be_image_formats(spec, tmp_path, tiff_folder):
+    argv = ["--folder", str(tiff_folder), "--save_dir", str(tmp_path / "out")]
+    assert run(argv, spec=spec, tool=lambda ctx: None, tool_formats=["png"]) == 1
+
+
 @pytest.mark.parametrize("policy, inputs, outputs, expected", [
     ("auto", {"zarr"}, {"tiff"}, "zarr"),
     ("auto", {"tiff"}, {"tiff"}, None),

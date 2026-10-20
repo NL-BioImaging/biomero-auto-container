@@ -28,8 +28,9 @@ repository's `config.yaml` directly at the configured tag. It looks for `descrip
 
 1. Parses the arguments against the spec (also bilayers-UI style and BIAFLOWS style, plus
    `--params params.yaml`); validates choices, numbers and required values.
-2. For each `image` input whose files are not in the input's `format` list, converts them
-   (biomero-converter) into a staging folder next to `data/out`.
+2. For each `image` input whose files are not in the input's `format` list (or in `tool_formats`,
+   when the workflow accepts more formats than the tool reads), converts them (biomero-converter)
+   into a staging folder next to `data/out`.
 3. Runs the tool into a staging folder.
 4. Converts outputs (`BIOMERO_OUTPUT_FORMAT`: `auto` gives OME-Zarr back when OME-Zarr came
    in and the tool writes TIFF; `zarr`, `tiff`, `keep`).
@@ -54,7 +55,7 @@ BIOMERO on Slurm zips `data/out` (7z/zip), copies the zip to the OMERO server, a
 It has no RO-Crate handling, and images inside a nested zip are not imported. Hence the
 defaults: no zip, and no input copy in `data/out`.
 
-Environment overrides: `BIOMERO_CONVERT_INPUTS`, `BIOMERO_OUTPUT_FORMAT`, `BIOMERO_ZARR_FORMAT`,
+Environment overrides: `BIOMERO_CONVERT_INPUTS`, `BIOMERO_TOOL_FORMATS`, `BIOMERO_OUTPUT_FORMAT`, `BIOMERO_ZARR_FORMAT`,
 `BIOMERO_RO_CRATE`, `BIOMERO_RO_CRATE_INPUT`, `BIOMERO_ZIP_OUTPUT`, `BIOMERO_WORKDIR`
 (see `src/biomero_template/runner.py`).
 
