@@ -80,13 +80,16 @@ commit unless asked). It gets:
 - `.gitignore`, `.dockerignore`, and a `README.md` describing the workflow, its parameters,
   outputs and BIOMERO registration. Directly under its title, a generated-with notice, e.g.:
 
-  > This BIOMERO workflow container was generated using
+  > This BIOMERO workflow container was generated with AI assistance (<assistant>, using the
+  > `create-biomero-container` skill) using
   > [biomero-auto-container](https://github.com/NL-BioImaging/biomero-auto-container) from
   > [<tool name>](<source URL>). It runs in [BIOMERO](https://github.com/NL-BioImaging/biomero),
   > is described by a [bilayers](https://github.com/bilayer-containers/bilayers) spec
   > (`config.yaml`), and adds OME-Zarr conversion and RO-Crate metadata. See
   > [generated-notes.md](generated-notes.md) for how it was made.
 
+  `<assistant>` is the AI assistant doing the work, e.g. Claude Code. Do not claim a human
+  review in the notice; the user adds that when it has happened.
   Keep the tool's own credit (authors, citation/DOI, license) in the README as well; the
   notice is in addition to it, not a replacement.
 - `generated-notes.md` — how the repository was created or converted (see step 6).
@@ -205,7 +208,8 @@ Then write (or update) `generated-notes.md` in the workflow repository, with:
 
 - a short intro: created from / converted in place from which source (URL, original format,
   e.g. BIAFLOWS `descriptor.json` + `BiaflowsJob` wrapper), following this procedure, with a
-  link to biomero-auto-container;
+  link to biomero-auto-container, and that it was done with AI assistance (the assistant, as
+  in the README notice);
 - **Tasks performed**: a table `| Change | What it does |`, one row per file or group of files
   (renames with `git mv`, removals with `git rm` and why, new `config.yaml` and the choices in
   it, `wrapper.py` hook, `Dockerfile` layers, tests, CI, docs);
