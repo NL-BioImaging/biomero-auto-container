@@ -6,19 +6,19 @@ the closest and combine.
 ## Existing bilayers workflow (`config.yaml` with `docker_image`, `exec_function`)
 
 Reuse its `config.yaml`; check folder inputs/outputs against the BIOMERO contract (an
-output folder BIOMERO can set), fix types the schema rejects (`biomero-template validate`).
+output folder BIOMERO can set), fix types the schema rejects (`biomero-auto validate`).
 If its image entrypoint is already a BIOMERO-aware wrapper, it may not need this template.
 
 ## BIAFLOWS / NEUBIAS workflow (`descriptor.json` with `schema-version: cytomine-0.1`, `wrapper.py`)
 
-- Draft: `biomero-template from-biaflows <descriptor URL or path> -o config.yaml`, then delete
+- Draft: `biomero-auto from-biaflows <descriptor URL or path> -o config.yaml`, then delete
   `descriptor.json` (BIOMERO would otherwise pick it before `config.yaml`).
   (`--input-format`/`--output-format` from what the wrapper reads/writes). Then fill in
   citations, license, image flags (`depth`, `timepoints`, ...), output `subtype`, labels.
 - Keep the original wrapper and its pipeline/macros unchanged in `/app/biaflows/`; install
   its own dependencies (BIAFLOWS utilities, Cytomine client, tool) as in its Dockerfile.
 - Hook: `biaflows_tool("<its python> /app/biaflows/wrapper.py")`. Parameter ids stay the
-  descriptor ids. If the wrapper needs Python < 3.12, give `biomero_template` its own venv.
+  descriptor ids. If the wrapper needs Python < 3.12, give `biomero_auto` its own venv.
 
 ## Command-line tool (a CLI with flags for input/output folders)
 

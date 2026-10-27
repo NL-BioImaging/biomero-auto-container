@@ -5,10 +5,10 @@ from pathlib import Path
 import pytest
 import yaml
 
-from biomero_template import BilayersSpec, SpecError, validate_config
+from biomero_auto import BilayersSpec, SpecError, validate_config
 from conftest import biomero_argv
 
-VENDOR = Path(__file__).resolve().parents[1] / "src" / "biomero_template" / "_vendor" / "bilayers"
+VENDOR = Path(__file__).resolve().parents[1] / "src" / "biomero_auto" / "_vendor" / "bilayers"
 
 
 def test_vendored_bilayers_files_are_unmodified():

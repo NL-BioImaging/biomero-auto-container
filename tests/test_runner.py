@@ -4,8 +4,8 @@ import zipfile
 import pytest
 import tifffile
 
-from biomero_template import BilayersSpec, run
-from biomero_template.conversion import find_images, output_target
+from biomero_auto import BilayersSpec, run
+from biomero_auto.conversion import find_images, output_target
 from conftest import biomero_argv
 
 

@@ -4,8 +4,8 @@ from pathlib import Path
 
 import yaml
 
-from biomero_template import BilayersSpec, run, validate_config
-from biomero_template.biaflows import bilayers_from_descriptor, biaflows_tool, descriptor_from_bilayers
+from biomero_auto import BilayersSpec, run, validate_config
+from biomero_auto.biaflows import bilayers_from_descriptor, biaflows_tool, descriptor_from_bilayers
 from conftest import DATA, biomero_argv
 
 DESCRIPTOR = json.loads((DATA / "biaflows_descriptor.json").read_text())

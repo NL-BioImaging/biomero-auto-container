@@ -2,7 +2,7 @@ import numpy as np
 import pytest
 import tifffile
 
-from biomero_template.conversion import TIFF, ZARR, convert, normalize_formats, prepare_input
+from biomero_auto.conversion import TIFF, ZARR, convert, normalize_formats, prepare_input
 from conftest import add_omero_metadata
 
 

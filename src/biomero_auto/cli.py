@@ -1,4 +1,4 @@
-"""``biomero-template`` command: check and convert bilayers specs while building a container."""
+"""``biomero-auto`` command: check and convert bilayers specs while building a container."""
 from __future__ import annotations
 
 import argparse
@@ -45,7 +45,7 @@ def _biomero_check(config: str) -> list[str]:
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(prog="biomero-template", description=__doc__)
+    parser = argparse.ArgumentParser(prog="biomero-auto", description=__doc__)
     commands = parser.add_subparsers(dest="command", required=True)
 
     validate = commands.add_parser("validate", help="validate a bilayers config (bilayers-schema LinkML schema)")
