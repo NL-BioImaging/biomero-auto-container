@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import logging
 import shutil
-import tempfile
 import zipfile
 from pathlib import Path
 from typing import Sequence
@@ -19,20 +18,15 @@ def write_ro_crate(config_path: Path, input_path: Path, output_paths: Sequence[P
 
     The crate holds ``ro-crate-metadata.json``, the bilayers config (the workflow, as
     mainEntity) and copies of each output, linked as FormalParameters. The input is
-    described the same way, but only copied with ``copy_input``: BIOMERO imports every
-    image found in the output folder, so a copy would re-import the input into OMERO.
+    described the same way, but referenced by its file URI unless ``copy_input``: BIOMERO
+    imports every image found in the output folder, so a copy would re-import the input
+    into OMERO.
     """
     from fair_metadata_integration import create_ro_crate
 
-    with tempfile.TemporaryDirectory(dir=dest_folder.parent, prefix=".ro-crate-input-") as tmp:
-        if not copy_input:
-            # an empty stand-in with the input's name: described in the crate, no data copied
-            input_path = Path(tmp) / Path(input_path).name
-            input_path.mkdir()
-        create_ro_crate(dest_path=str(dest_folder), workflow_schema_filename=str(config_path),
-                        input_path=str(input_path), output_paths=[str(path) for path in output_paths])
-    if not copy_input:
-        (dest_folder / input_path.name).rmdir()
+    create_ro_crate(dest_path=str(dest_folder), workflow_schema_filename=str(config_path),
+                    input_path=str(input_path), output_paths=[str(path) for path in output_paths],
+                    copy_input=copy_input, copy_outputs=True)
     logger.info("RO-Crate written to %s", dest_folder)
     return dest_folder / CRATE_METADATA
 

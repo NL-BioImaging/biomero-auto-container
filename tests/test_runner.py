@@ -24,14 +24,14 @@ def test_zarr_in_zarr_out_with_ro_crate(spec, config_path, zarr_folder):
     out = data_path / "data" / "out"
     assert [path.name for path in find_images(out)] == ["blobs_output.ome.zarr"]
     crate = json.loads((out / "ro-crate-metadata.json").read_text())
-    ids = {entity["@id"] for entity in crate["@graph"]}
-    assert {config_path.name, "blobs_output.ome.zarr/", "in/"} <= ids
+    ids = {entity["@id"].rstrip("/") for entity in crate["@graph"]}
+    input_uri = (data_path / "data" / "in").resolve().as_uri()
+    assert {config_path.name, "blobs_output.ome.zarr", input_uri} <= ids
     for entity_id in (config_path.name, "blobs_output.ome.zarr"):
         assert (out / entity_id).exists(), f"{entity_id} not in the crate"
-    # the input is described but not copied: BIOMERO would import it again from data/out
+    # the input is referenced, not copied: BIOMERO would import it again from data/out
     assert not (out / "in").exists()
     assert not list(data_path.glob("data/biomero-work-*"))  # staging removed
-    assert not list(data_path.glob("data/.ro-crate-*"))
 
 
 def test_staging_folder_is_not_hidden(spec, tmp_path, tiff_folder):
