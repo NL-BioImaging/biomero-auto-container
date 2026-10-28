@@ -168,7 +168,7 @@ def _run(spec, values, tool, final_outputs, work, settings) -> None:
 
     tool(RunContext(spec=spec, values=values, inputs=tool_inputs, outputs=tool_outputs, workdir=work))
 
-    input_path = next((values.inputs[name] for name in spec.folder_inputs() if name in tool_inputs), None)
+    input_paths = [values.inputs[name] for name in spec.folder_inputs() if name in tool_inputs]
     for final, folder in staging.items():
         results = folder
         if target:
@@ -177,8 +177,8 @@ def _run(spec, values, tool, final_outputs, work, settings) -> None:
         if fair:
             from .fair import write_ro_crate
 
-            write_ro_crate(spec.path, input_path, sorted(results.iterdir()) if results.is_dir() else [], final,
-                           copy_input=settings["ro_crate_input"] == "copy")
+            write_ro_crate(spec.path, input_paths, sorted(results.iterdir()) if results.is_dir() else [], final,
+                           copy_inputs=settings["ro_crate_input"] == "copy")
 
     if settings["zip_output"]:
         from .fair import zip_folder

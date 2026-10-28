@@ -12,21 +12,21 @@ logger = logging.getLogger(__name__)
 CRATE_METADATA = "ro-crate-metadata.json"
 
 
-def write_ro_crate(config_path: Path, input_path: Path, output_paths: Sequence[Path], dest_folder: Path,
-                   copy_input: bool = False) -> Path:
+def write_ro_crate(config_path: Path, input_paths: Sequence[Path], output_paths: Sequence[Path], dest_folder: Path,
+                   copy_inputs: bool = False) -> Path:
     """Make ``dest_folder`` the run's RO-Crate, with fair-metadata-integration.
 
     The crate holds ``ro-crate-metadata.json``, the bilayers config (the workflow, as
-    mainEntity) and copies of each output, linked as FormalParameters. The input is
-    described the same way, but referenced by its file URI unless ``copy_input``: BIOMERO
+    mainEntity) and copies of each output, linked as FormalParameters. The inputs are
+    described the same way, but referenced by their file URI unless ``copy_inputs``: BIOMERO
     imports every image found in the output folder, so a copy would re-import the input
     into OMERO.
     """
     from fair_metadata_integration import create_ro_crate
 
     create_ro_crate(dest_path=str(dest_folder), workflow_schema_filename=str(config_path),
-                    input_path=str(input_path), output_paths=[str(path) for path in output_paths],
-                    copy_input=copy_input, copy_outputs=True)
+                    input_paths=[str(path) for path in input_paths], output_paths=[str(path) for path in output_paths],
+                    copy_inputs=copy_inputs, copy_outputs=True)
     logger.info("RO-Crate written to %s", dest_folder)
     return dest_folder / CRATE_METADATA
 
